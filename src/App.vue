@@ -6,116 +6,32 @@
         <a class="navbar-brand" href="#"><i class="fas fa-book me-2"></i>The Best After-School Club</a>
         <div class="navbar-nav ms-auto">
           <a class="nav-link" href="#"><i class="fas fa-user"></i></a>
-          <button class="btn btn-outline-light" @click="showCart = !showCart">
+          <button class="btn btn-outline-light" @click="toggleCart">
             <i class="fas fa-shopping-cart me-1"></i>Cart ({{ cartTotal }})
           </button>
         </div>
       </div>
     </nav>
 
-    <!-- Main Content -->
-    <div class="d-flex flex-grow-1 overflow-hidden">
-      <!-- Left Sidebar -->
-      <div class="col-md-3 p-3 bg-light border-end" style="height: calc(100vh - 56px); overflow-y: auto;">
-        <h5>Sort By</h5>
-        <div class="form-check">
-          <input class="form-check-input" type="radio" name="sortBy" id="subject" value="topic" v-model="sortBy" @change="sortLessons">
-          <label class="form-check-label" for="subject">Subject</label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="radio" name="sortBy" id="location" value="location" v-model="sortBy" @change="sortLessons">
-          <label class="form-check-label" for="location">Location</label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="radio" name="sortBy" id="price" value="price" v-model="sortBy" @change="sortLessons">
-          <label class="form-check-label" for="price">Price</label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="radio" name="sortBy" id="available" value="space" v-model="sortBy" @change="sortLessons">
-          <label class="form-check-label" for="available">Available</label>
-        </div>
-        <h5 class="mt-3">Order</h5>
-        <div class="form-check">
-          <input class="form-check-input" type="radio" name="order" id="asc" value="asc" v-model="sortOrder" @change="sortLessons">
-          <label class="form-check-label" for="asc">Ascending</label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="radio" name="order" id="desc" value="desc" v-model="sortOrder" @change="sortLessons">
-          <label class="form-check-label" for="desc">Descending</label>
-        </div>
-      </div>
-
-      <!-- Products Section -->
-      <div class="col-md-9 p-3 d-flex flex-column" style="height: calc(100vh - 56px); overflow: hidden;">
-        <input v-model="searchQuery" @input="debouncedSearch" placeholder="Search subjects or locations..." class="form-control mb-3">
-        <div class="products-grid flex-grow-1 overflow-y-auto" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
-          <div v-for="lesson in filteredLessons" :key="lesson._id" class="product-card bg-white p-3 border rounded shadow-sm">
-            <div class="text-center mb-2">
-              <i :class="getIcon(lesson.topic)" style="font-size: 2em; color: #007bff;"></i>
-            </div>
-            <h6 class="product-name mb-2">{{ lesson.topic }} in {{ lesson.location }}</h6>
-            <div class="product-price mb-2 fw-bold text-success">£{{ lesson.price }}/hour</div>
-            <div class="availability mb-2 text-muted">Availability: {{ lesson.space }} slots</div>
-            <div v-if="cart[lesson._id] > 0" class="mb-2 text-info">In basket: {{ cart[lesson._id] }}</div>
-            <button class="add-btn btn btn-primary w-100" @click="addToBasket(lesson._id)" :disabled="lesson.space === 0">
-              {{ lesson.space === 0 ? 'Out of Stock' : 'Add to Basket' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Cart Modal -->
-    <div v-if="showCart" class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Shopping Basket</h5>
-            <button type="button" class="btn-close" @click="showCart = false"></button>
-          </div>
-          <div class="modal-body">
-            <div v-if="Object.keys(cart).length === 0" class="alert alert-info">Your basket is empty.</div>
-            <div v-for="(qty, id) in cart" :key="id" class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
-              <span>{{ getLessonName(id) }} - £{{ getLessonPrice(id) }}/hour</span>
-              <div>
-                <button class="btn btn-sm btn-outline-secondary me-1" @click="updateQty(id, -1)">-</button>
-                <span class="mx-2">Qty: {{ qty }}</span>
-                <button class="btn btn-sm btn-outline-secondary me-2" @click="updateQty(id, 1)">+</button>
-                <button class="btn btn-sm btn-danger" @click="removeFromBasket(id)">Remove</button>
-              </div>
-            </div>
-            <div v-if="Object.keys(cart).length > 0" class="mt-3">
-              <div class="row">
-                <div class="col-6">
-                  <input v-model="orderName" placeholder="Name (letters only)" class="form-control mb-2">
-                  <input v-model="orderPhone" placeholder="Phone (numbers only)" class="form-control mb-2">
-                </div>
-                <div class="col-6 d-flex align-items-end">
-                  <div class="total me-2 fw-bold fs-5">Total: £{{ cartTotalPrice }}</div>
-                  <button class="btn btn-success ms-auto" :disabled="!isValidOrder" @click="checkout">Checkout</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Router View for Lessons or Cart -->
+    <router-view />
   </div>
 </template>
 
 <script>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, provide } from 'vue'
+import { useRouter } from 'vue-router'
 
 export default {
   setup() {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'  // Env var for Render
+    const router = useRouter()
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
     const lessons = ref([])
     const cart = reactive({})
     const searchQuery = ref('')
     const sortBy = ref('topic')
     const sortOrder = ref('asc')
-    const showCart = ref(false)
     const orderName = ref('')
     const orderPhone = ref('')
 
@@ -129,7 +45,7 @@ export default {
       }
     }
 
-    // Debounced search (as you type, back-end)
+    // Debounced search
     let searchTimeout
     const debouncedSearch = () => {
       clearTimeout(searchTimeout)
@@ -155,7 +71,7 @@ export default {
     })
 
     const sortLessons = () => {
-      // Trigger re-sort
+      // Re-compute
     }
 
     // Cart functions
@@ -205,7 +121,6 @@ export default {
           body: JSON.stringify(order)
         })
         if (postRes.ok) {
-          // Update spaces
           for (const [id, qty] of Object.entries(cart)) {
             const lesson = lessons.value.find(l => l._id === id)
             await fetch(`${apiUrl}/lessons/${id}`, {
@@ -218,20 +133,50 @@ export default {
           Object.keys(cart).forEach(key => delete cart[key])
           orderName.value = ''
           orderPhone.value = ''
-          showCart.value = false
-          fetchLessons()  // Refresh
+          router.push('/')  // Back to lessons
+          fetchLessons()
         }
       } catch (err) {
         console.error('Checkout error:', err)
       }
     }
 
+    const toggleCart = () => {
+      if (router.currentRoute.value.path === '/') {
+        router.push('/cart')
+      } else {
+        router.push('/')
+      }
+    }
+
     onMounted(fetchLessons)
 
+    // Provide shared state to child views
+    provide('lessons', lessons)
+    provide('cart', cart)
+    provide('searchQuery', searchQuery)
+    provide('sortBy', sortBy)
+    provide('sortOrder', sortOrder)
+    provide('orderName', orderName)
+    provide('orderPhone', orderPhone)
+    provide('addToBasket', addToBasket)
+    provide('updateQty', updateQty)
+    provide('removeFromBasket', removeFromBasket)
+    provide('debouncedSearch', debouncedSearch)
+    provide('sortLessons', sortLessons)
+    provide('checkout', checkout)
+    provide('isValidOrder', isValidOrder)
+    provide('cartTotal', cartTotal)
+    provide('cartTotalPrice', cartTotalPrice)
+    provide('getLessonName', getLessonName)
+    provide('getLessonPrice', getLessonPrice)
+    provide('getIcon', getIcon)
+    provide('toggleCart', toggleCart)
+    provide('apiUrl', apiUrl)
+
     return {
-      lessons, cart, searchQuery, sortBy, sortOrder, showCart, orderName, orderPhone,
-      filteredLessons, debouncedSearch, sortLessons, addToBasket, updateQty, removeFromBasket,
-      isValidOrder, cartTotal, cartTotalPrice, getLessonName, getLessonPrice, getIcon, checkout
+      cartTotal,
+      toggleCart
     }
   }
 }
@@ -242,5 +187,4 @@ export default {
 .overflow-hidden { overflow: hidden; }
 .product-card { height: 200px; display: flex; flex-direction: column; justify-content: space-between; }
 .add-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.modal { z-index: 1050; }
 </style>
