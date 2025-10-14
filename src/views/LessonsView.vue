@@ -1,3 +1,4 @@
+<!-- src/views/LessonsView.vue -->
 <template>
   <div class="d-flex flex-grow-1 overflow-hidden">
     <!-- Left Sidebar -->
@@ -28,21 +29,32 @@
         <input class="form-check-input" type="radio" name="order" id="desc" value="desc" v-model="sortOrder" @change="sortLessons">
         <label class="form-check-label" for="desc">Descending</label>
       </div>
+      <h5 class="mt-3">View</h5>
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="viewMode" id="card" value="card" v-model="viewMode">
+        <label class="form-check-label" for="card">Card</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="viewMode" id="list" value="list" v-model="viewMode">
+        <label class="form-check-label" for="list">List</label>
+      </div>
     </div>
 
     <!-- Products Section -->
     <div class="col-md-9 p-3 d-flex flex-column">
       <input v-model="searchQuery" @input="debouncedSearch" placeholder="Search subjects or locations..." class="form-control mb-3">
-      <div class="products-grid flex-grow-1 overflow-y-auto" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
-        <div v-for="lesson in filteredLessons" :key="lesson._id" class="product-card bg-white p-3 border rounded shadow-sm">
-          <div class="text-center mb-2">
-            <i :class="getIcon(lesson.topic)" style="font-size: 2em; color: #007bff;"></i>
+      <div :class="viewModeClass" class="flex-grow-1 overflow-y-auto">
+        <div v-for="lesson in filteredLessons" :key="lesson._id" class="product-item mb-3 p-3 border rounded shadow-sm">
+          <div class="d-flex align-items-center mb-2">
+            <img :src="`${apiUrl}/images/${lesson.icon}`" style="width: 50px; height: 50px; object-fit: cover; margin-right: 15px;" alt="Icon" @error="onImgError">
+            <div class="flex-grow-1">
+              <h6 class="mb-1">{{ lesson.topic }} in {{ lesson.location }}</h6>
+              <div class="fw-bold text-success">£{{ lesson.price }}/hour</div>
+            </div>
           </div>
-          <h6 class="product-name mb-2">{{ lesson.topic }} in {{ lesson.location }}</h6>
-          <div class="product-price mb-2 fw-bold text-success">£{{ lesson.price }}/hour</div>
-          <div class="availability mb-2 text-muted">Availability: {{ lesson.space }} slots</div>
-          <div v-if="cart[lesson._id] > 0" class="mb-2 text-info">In basket: {{ cart[lesson._id] }}</div>
-          <button class="add-btn btn btn-primary w-100" @click="addToBasket(lesson._id)" :disabled="lesson.space === 0">
+          <div class="text-muted">Availability: {{ lesson.space }} slots</div>
+          <div v-if="cart[lesson._id] > 0" class="text-info">In basket: {{ cart[lesson._id] }}</div>
+          <button class="btn btn-primary w-100 mt-2" @click="addToBasket(lesson._id)" :disabled="lesson.space === 0">
             {{ lesson.space === 0 ? 'Out of Stock' : 'Add to Basket' }}
           </button>
         </div>
@@ -52,6 +64,7 @@
 </template>
 
 <script>
+import { computed } from 'vue'
 import { inject } from 'vue'
 
 export default {
@@ -61,20 +74,37 @@ export default {
     const searchQuery = inject('searchQuery')
     const sortBy = inject('sortBy')
     const sortOrder = inject('sortOrder')
-    const filteredLessons = inject('filteredLessons')
+    const viewMode = inject('viewMode')
     const debouncedSearch = inject('debouncedSearch')
     const sortLessons = inject('sortLessons')
     const addToBasket = inject('addToBasket')
-    const getIcon = inject('getIcon')
+    const apiUrl = inject('apiUrl')
+
+    const filteredLessons = computed(() => {
+      return [...lessons.value].sort((a, b) => {
+        let valA = a[sortBy.value], valB = b[sortBy.value]
+        if (['price', 'space'].includes(sortBy.value)) {
+          return sortOrder.value === 'asc' ? valA - valB : valB - valA
+        }
+        return sortOrder.value === 'asc' ? valA.toString().localeCompare(valB.toString()) : valB.toString().localeCompare(valA.toString())
+      })
+    })
+
+    const viewModeClass = computed(() => viewMode.value === 'card' ? 'd-grid gap-3 products-grid' : 'd-flex flex-column')
+
+    const onImgError = (e) => {
+      e.target.src = `${apiUrl}/images/default.png`  // Fallback if image missing
+    }
 
     return {
-      lessons, cart, searchQuery, sortBy, sortOrder, filteredLessons, debouncedSearch, sortLessons, addToBasket, getIcon
+      lessons, cart, searchQuery, sortBy, sortOrder, viewMode, debouncedSearch, sortLessons, addToBasket, filteredLessons, viewModeClass, onImgError, apiUrl
     }
   }
 }
 </script>
 
 <style>
-.product-card { height: 200px; display: flex; flex-direction: column; justify-content: space-between; }
+.products-grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.product-item { display: flex; flex-direction: column; }
 .add-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 </style>

@@ -1,13 +1,13 @@
+<!-- src/App.vue -->
 <template>
   <div class="container-fluid vh-100 d-flex flex-column overflow-hidden">
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
       <div class="container">
-        <a class="navbar-brand" href="#"><i class="fas fa-book me-2"></i>The Best After-School Club</a>
+        <a class="navbar-brand" href="/frontend/"><i class="fas fa-book me-2"></i>The Best After-School Club</a>
         <div class="navbar-nav ms-auto">
-          <a class="nav-link" href="#"><i class="fas fa-user"></i></a>
           <button class="btn btn-outline-light" @click="toggleCart">
-            <i class="fas fa-shopping-cart me-1"></i>Cart ({{ cartTotal }})
+            <i class="fas fa-shopping-cart me-1"></i>{{ cartButtonText }} ({{ cartTotal }})
           </button>
         </div>
       </div>
@@ -19,12 +19,13 @@
 </template>
 
 <script>
-import { ref, reactive, provide } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, provide, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
 export default {
   setup() {
     const router = useRouter()
+    const route = useRoute()
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
     const lessons = ref([])
@@ -34,6 +35,7 @@ export default {
     const sortOrder = ref('asc')
     const orderName = ref('')
     const orderPhone = ref('')
+    const viewMode = ref('card')  // New: 'card' or 'list'
 
     // Fetch lessons
     const fetchLessons = async () => {
@@ -141,15 +143,12 @@ export default {
       }
     }
 
+    const cartButtonText = computed(() => route.path === '/cart' ? 'Lessons' : 'Cart')
     const toggleCart = () => {
-      if (router.currentRoute.value.path === '/') {
-        router.push('/cart')
-      } else {
-        router.push('/')
-      }
+      router.push(route.path === '/' ? '/cart' : '/')
     }
 
-    onMounted(fetchLessons)
+    fetchLessons()
 
     // Provide shared state to child views
     provide('lessons', lessons)
@@ -159,6 +158,7 @@ export default {
     provide('sortOrder', sortOrder)
     provide('orderName', orderName)
     provide('orderPhone', orderPhone)
+    provide('viewMode', viewMode)  // New
     provide('addToBasket', addToBasket)
     provide('updateQty', updateQty)
     provide('removeFromBasket', removeFromBasket)
@@ -171,11 +171,11 @@ export default {
     provide('getLessonName', getLessonName)
     provide('getLessonPrice', getLessonPrice)
     provide('getIcon', getIcon)
-    provide('toggleCart', toggleCart)
     provide('apiUrl', apiUrl)
 
     return {
       cartTotal,
+      cartButtonText,
       toggleCart
     }
   }
@@ -187,4 +187,5 @@ export default {
 .overflow-hidden { overflow: hidden; }
 .product-card { height: 200px; display: flex; flex-direction: column; justify-content: space-between; }
 .add-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.modal { z-index: 1050; }
 </style>
