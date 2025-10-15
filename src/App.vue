@@ -35,7 +35,7 @@ export default {
     const sortOrder = ref('asc')
     const orderName = ref('')
     const orderPhone = ref('')
-    const viewMode = ref('card')  // New: 'card' or 'list'
+    const viewMode = ref('card')  //'card' or 'list'
 
     // Fetch lessons
     const fetchLessons = async () => {
@@ -158,7 +158,7 @@ export default {
     provide('sortOrder', sortOrder)
     provide('orderName', orderName)
     provide('orderPhone', orderPhone)
-    provide('viewMode', viewMode)  // New
+    provide('viewMode', viewMode) 
     provide('addToBasket', addToBasket)
     provide('updateQty', updateQty)
     provide('removeFromBasket', removeFromBasket)
