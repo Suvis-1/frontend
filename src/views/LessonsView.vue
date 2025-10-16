@@ -166,7 +166,7 @@ export default {
 .brand-logo { height: 40px; width: auto; }
 
 /* Brand text styling */
-.brand-text { font-size: 1.25rem; letter-spacing: 0.5px; }
+.brand-text { font-size: 1.4rem; letter-spacing: 0.2px; }
 
 /* Hover effect for brand */
 .navbar-brand:hover .brand-text { color: #ffc107; }
