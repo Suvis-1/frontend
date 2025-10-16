@@ -1,4 +1,3 @@
-<!-- src/views/LessonsView.vue -->
 <template>
   <div class="d-flex flex-grow-1 overflow-hidden">
     <!-- Left Sidebar -->
@@ -72,14 +71,34 @@
               <div class="fw-bold text-success">£{{ lesson.price }}/hour</div>
             </div>
           </div>
-          <div class="text-muted">Availability: {{ lesson.space }} slots</div>
-          <div v-if="cart[lesson._id] > 0" class="text-info">In basket: {{ cart[lesson._id] }}</div>
-          <button class="btn btn-primary w-100 mt-2 add-btn"
+
+          <div class="text-muted">
+            Availability: {{ lesson.totalSpace - (cart[lesson._id] || 0) }} slots
+          </div>
+
+          <!-- If not in cart yet -->
+          <button v-if="!cart[lesson._id]" 
+                  class="btn btn-primary w-100 mt-2 add-btn"
                   @click="addToBasket(lesson._id)" 
-                  :disabled="lesson.space === 0"
-                  :title="lesson.space === 0 ? 'No spaces left' : 'Add this lesson to your basket'">
-            {{ lesson.space === 0 ? 'Out of Stock' : 'Add to Basket' }}
+                  :disabled="lesson.totalSpace === 0">
+            {{ lesson.totalSpace === 0 ? 'Out of Stock' : 'Add to Basket' }}
           </button>
+
+          <!-- If already in cart: show quantity control -->
+          <div v-else class="input-group mt-2">
+            <button class="btn btn-primary"
+                    :disabled="cart[lesson._id] <= 1"
+                    @click="updateQty(lesson._id, -1)">−</button>
+
+            <input type="number" class="form-control text-center qty-input"
+                   v-model.number="cart[lesson._id]"
+                   @blur="validateQty(lesson._id, lesson.totalSpace)" 
+                   min="1" :max="lesson.totalSpace" />
+
+            <button class="btn btn-primary"
+                    :disabled="cart[lesson._id] >= lesson.totalSpace"
+                    @click="updateQty(lesson._id, 1)">+</button>
+          </div>
         </div>
       </div>
     </div>
@@ -87,7 +106,7 @@
 </template>
 
 <script>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { inject } from 'vue'
 
 export default {
@@ -100,9 +119,9 @@ export default {
     const viewMode = inject('viewMode')
     const debouncedSearch = inject('debouncedSearch')
     const addToBasket = inject('addToBasket')
+    const updateQty = inject('updateQty')
     const apiUrl = inject('apiUrl')
 
-    // Persist preferences in localStorage
     const persistPreferences = () => {
       localStorage.setItem('lessonPrefs', JSON.stringify({
         sortBy: sortBy.value,
@@ -112,14 +131,39 @@ export default {
     }
 
     onMounted(() => {
-      const saved = localStorage.getItem('lessonPrefs')
-      if (saved) {
-        const prefs = JSON.parse(saved)
+      const savedPrefs = localStorage.getItem('lessonPrefs')
+      if (savedPrefs) {
+        const prefs = JSON.parse(savedPrefs)
         sortBy.value = prefs.sortBy || 'topic'
         sortOrder.value = prefs.sortOrder || 'asc'
         viewMode.value = prefs.viewMode || 'card'
       }
+
+      const savedCart = localStorage.getItem('lessonCart')
+      if (savedCart) {
+        try {
+          const { data, timestamp } = JSON.parse(savedCart)
+          const now = Date.now()
+          const oneHour = 60 * 60 * 1000
+          if (now - timestamp < oneHour) {
+            Object.assign(cart, data)
+          } else {
+            localStorage.removeItem('lessonCart')
+          }
+        } catch (err) {
+          localStorage.removeItem('lessonCart')
+        }
+      }
     })
+
+    // Save cart on change
+    watch(cart, (newCart) => {
+      const payload = {
+        data: newCart,
+        timestamp: Date.now()
+      }
+      localStorage.setItem('lessonCart', JSON.stringify(payload))
+    }, { deep: true })
 
     const filteredLessons = computed(() => {
       return [...lessons.value].sort((a, b) => {
@@ -137,7 +181,6 @@ export default {
       viewMode.value === 'card' ? 'd-grid gap-3 products-grid' : 'd-flex flex-column'
     )
 
-    // Safe fallback image handler
     const onImgError = (e) => {
       if (!e.target.dataset.fallback) {
         e.target.src = `${apiUrl}/images/default.png`
@@ -145,30 +188,97 @@ export default {
       }
     }
 
+        const validateQty = (id, totalSpace) => {
+      let qty = cart[id]
+      if (!qty || qty < 1) {
+        cart[id] = 1
+      } else if (qty > totalSpace) {
+        cart[id] = totalSpace
+      }
+    }
+
     return {
-      lessons, cart, searchQuery, sortBy, sortOrder, viewMode,
-      debouncedSearch, addToBasket, filteredLessons, viewModeClass,
-      onImgError, apiUrl, persistPreferences
+      lessons,
+      cart,
+      searchQuery,
+      sortBy,
+      sortOrder,
+      viewMode,
+      debouncedSearch,
+      addToBasket,
+      updateQty,
+      validateQty,
+      filteredLessons,
+      viewModeClass,
+      onImgError,
+      apiUrl,
+      persistPreferences
     }
   }
 }
 </script>
 
+
 <style>
-.products-grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
-.product-item { display: flex; flex-direction: column; }
-.add-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.products-grid { 
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+}
+.product-item { 
+  display: flex; 
+  flex-direction: column; 
+}
+.add-btn:disabled { 
+  opacity: 0.6; 
+  cursor: not-allowed; 
+}
+
+/* Quantity input styling */
+.input-group .form-control {
+  padding: 0.25rem;
+  height: 38px;
+}
+
+/* Hide native number input arrows */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  appearance: textfield; 
+  -moz-appearance: textfield;
+}
+
+/* Match +/− buttons to Add to Basket colour */
+.input-group .btn-primary {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+.input-group .btn-primary:disabled {
+  background-color: #6c757d; /* greyed out */
+  border-color: #6c757d;
+}
 
 /* Navbar background with subtle gradient */
-.custom-navbar { background: linear-gradient(90deg, #0d6efd, #0b5ed7);}
+.custom-navbar { 
+  background: linear-gradient(90deg, #0d6efd, #0b5ed7);
+}
 
 /* Logo sizing */
-.brand-logo { height: 40px; width: auto; }
+.brand-logo { 
+  height: 40px; 
+  width: auto; 
+}
 
 /* Brand text styling */
-.brand-text { font-size: 1.4rem; letter-spacing: 0.2px; }
+.brand-text { 
+  font-size: 1.4rem; 
+  letter-spacing: 0.2px; 
+}
 
 /* Hover effect for brand */
-.navbar-brand:hover .brand-text { color: #ffc107; }
-
+.navbar-brand:hover .brand-text { 
+  color: #ffc107; 
+}
 </style>

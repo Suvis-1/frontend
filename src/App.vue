@@ -77,11 +77,18 @@ export default {
     const fetchLessons = async () => {
       try {
         const res = await fetch(`${apiUrl}/lessons`)
-        lessons.value = await res.json()
+        const data = await res.json()
+
+        // Add totalSpace so we always know the original stock
+        lessons.value = data.map(l => ({
+          ...l,
+          totalSpace: l.space
+        }))
       } catch (err) {
         showToast('Error fetching lessons', 'error')
       }
     }
+
 
     // Debounced search
     let searchTimeout
@@ -162,6 +169,9 @@ export default {
           showToast(`Order failed: ${data.error}`, 'error')
           return
         }
+
+        await fetchLessons()
+
         showToast('Order submitted successfully!', 'success')
         Object.keys(cart).forEach(key => delete cart[key])
         orderName.value = ''

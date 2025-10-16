@@ -48,7 +48,7 @@
           <div class="total mb-2 fw-bold fs-4 text-success">
             Total: £{{ cartTotalPrice.toFixed(2) }}
           </div>
-          <button class="btn btn-success w-100"
+          <button class="btn btn-success w-100 checkout-btn"
                   :disabled="!isValidOrder || isSubmitting"
                   @click="checkout">
             <span v-if="isSubmitting">
@@ -63,7 +63,7 @@
 </template>
 
 <script>
-import { computed, inject } from 'vue'
+import { computed, inject, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 export default {
@@ -82,6 +82,34 @@ export default {
     const isSubmitting = inject('isSubmitting')
     const isValidOrder = inject('isValidOrder')
 
+    // Persist cart to localStorage
+    watch(cart, (newCart) => {
+      const payload = {
+        data: newCart,
+        timestamp: Date.now()
+      }
+      localStorage.setItem('lessonCart', JSON.stringify(payload))
+    }, { deep: true })
+
+    // Restore cart if not expired
+    onMounted(() => {
+      const saved = localStorage.getItem('lessonCart')
+      if (saved) {
+        try {
+          const { data, timestamp } = JSON.parse(saved)
+          const now = Date.now()
+          const oneHour = 60 * 60 * 1000
+          if (now - timestamp < oneHour) {
+            Object.assign(cart, data)
+          } else {
+            localStorage.removeItem('lessonCart')
+          }
+        } catch (err) {
+          localStorage.removeItem('lessonCart')
+        }
+      }
+    })
+
     return {
       cart, orderName, orderPhone, orderNotes,
       updateQty, removeFromBasket, checkout,
@@ -95,4 +123,17 @@ export default {
 <style>
 .basket-items { height: 10px; }
 .checkout-section { border-top: 1px solid #ddd; }
+
+.checkout-btn {
+  height: 100px;
+  font-size: 1.15rem;
+  font-weight: 600;
+  padding-top: 0.6rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.checkout-btn:disabled {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  cursor: not-allowed;
+}
 </style>
