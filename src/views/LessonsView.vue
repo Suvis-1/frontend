@@ -65,7 +65,8 @@
           <div class="d-flex align-items-center mb-2">
             <img :src="`${apiUrl}/images/${lesson.icon}`"
                  style="width: 50px; height: 50px; object-fit: cover; margin-right: 15px;"
-                 alt="Lesson icon" @error="onImgError">
+                 :alt="`${lesson.topic} lesson icon`"
+                 @error="onImgError">
             <div class="flex-grow-1">
               <h6 class="mb-1">{{ lesson.topic }} in {{ lesson.location }}</h6>
               <div class="fw-bold text-success">£{{ lesson.price }}/hour</div>
@@ -73,9 +74,10 @@
           </div>
           <div class="text-muted">Availability: {{ lesson.space }} slots</div>
           <div v-if="cart[lesson._id] > 0" class="text-info">In basket: {{ cart[lesson._id] }}</div>
-          <button class="btn btn-primary w-100 mt-2" 
+          <button class="btn btn-primary w-100 mt-2 add-btn"
                   @click="addToBasket(lesson._id)" 
-                  :disabled="lesson.space === 0">
+                  :disabled="lesson.space === 0"
+                  :title="lesson.space === 0 ? 'No spaces left' : 'Add this lesson to your basket'">
             {{ lesson.space === 0 ? 'Out of Stock' : 'Add to Basket' }}
           </button>
         </div>
@@ -100,7 +102,7 @@ export default {
     const addToBasket = inject('addToBasket')
     const apiUrl = inject('apiUrl')
 
-    // --- Persist preferences in localStorage ---
+    // Persist preferences in localStorage
     const persistPreferences = () => {
       localStorage.setItem('lessonPrefs', JSON.stringify({
         sortBy: sortBy.value,
@@ -135,7 +137,7 @@ export default {
       viewMode.value === 'card' ? 'd-grid gap-3 products-grid' : 'd-flex flex-column'
     )
 
-    // --- Safe fallback image handler ---
+    // Safe fallback image handler
     const onImgError = (e) => {
       if (!e.target.dataset.fallback) {
         e.target.src = `${apiUrl}/images/default.png`
@@ -156,4 +158,17 @@ export default {
 .products-grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .product-item { display: flex; flex-direction: column; }
 .add-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Navbar background with subtle gradient */
+.custom-navbar { background: linear-gradient(90deg, #0d6efd, #0b5ed7);}
+
+/* Logo sizing */
+.brand-logo { height: 40px; width: auto; }
+
+/* Brand text styling */
+.brand-text { font-size: 1.25rem; letter-spacing: 0.5px; }
+
+/* Hover effect for brand */
+.navbar-brand:hover .brand-text { color: #ffc107; }
+
 </style>

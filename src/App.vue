@@ -2,19 +2,43 @@
 <template>
   <div class="container-fluid vh-100 d-flex flex-column overflow-hidden">
     <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <nav class="navbar navbar-expand-lg navbar-dark custom-navbar shadow-sm">
       <div class="container">
-        <a class="navbar-brand" href="/frontend/"><i class="fas fa-book me-2"></i>The Best After-School Club</a>
+        <a class="navbar-brand d-flex align-items-center" href="/frontend/">
+          <img src="/logo.png" alt="Logo" class="brand-logo me-2">
+          <span class="brand-text">
+            <span class="fw-bold text-warning">The Best</span>
+            <span class="fw-light"> After‑School Club</span>
+          </span>
+        </a>
         <div class="navbar-nav ms-auto">
-          <button class="btn btn-outline-light" @click="toggleCart">
-            <i class="fas fa-shopping-cart me-1"></i>{{ cartButtonText }} ({{ cartTotal }})
+          <!-- Show Cart button only on lessons page -->
+          <button v-if="route.path === '/'" class="btn btn-outline-light" @click="toggleCart">
+            <i class="fas fa-shopping-cart me-1"></i> Cart ({{ cartTotal }})
+          </button>
+
+          <!-- Show Lessons button only on cart page -->
+          <button v-else-if="route.path === '/cart'" class="btn btn-outline-light" @click="toggleCart">
+            <i class="fas fa-book me-1"></i> Lessons
           </button>
         </div>
+
       </div>
     </nav>
 
-    <!-- Router View for Lessons or Cart -->
+    <!-- Router View -->
     <router-view />
+
+    <!-- Toast notifications -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+      <div v-for="toast in toasts" :key="toast.id"
+           class="toast show align-items-center text-white border-0 mb-2 animate-toast"
+           :class="toast.type === 'success' ? 'bg-success' : 'bg-danger'">
+        <div class="d-flex">
+          <div class="toast-body">{{ toast.message }}</div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -35,7 +59,19 @@ export default {
     const sortOrder = ref('asc')
     const orderName = ref('')
     const orderPhone = ref('')
-    const viewMode = ref('card')  //'card' or 'list'
+    const orderNotes = ref('')
+    const viewMode = ref('card')
+    const isSubmitting = ref(false)
+
+    // Toast system
+    const toasts = ref([])
+    const showToast = (message, type = 'success') => {
+      const id = Date.now()
+      toasts.value.push({ id, message, type })
+      setTimeout(() => {
+        toasts.value = toasts.value.filter(t => t.id !== id)
+      }, 3000)
+    }
 
     // Fetch lessons
     const fetchLessons = async () => {
@@ -43,7 +79,7 @@ export default {
         const res = await fetch(`${apiUrl}/lessons`)
         lessons.value = await res.json()
       } catch (err) {
-        console.error('Fetch lessons error:', err)
+        showToast('Error fetching lessons', 'error')
       }
     }
 
@@ -59,21 +95,6 @@ export default {
           fetchLessons()
         }
       }, 300)
-    }
-
-    // Sort lessons
-    const filteredLessons = computed(() => {
-      return [...lessons.value].sort((a, b) => {
-        let valA = a[sortBy.value], valB = b[sortBy.value]
-        if (['price', 'space'].includes(sortBy.value)) {
-          return sortOrder.value === 'asc' ? valA - valB : valB - valA
-        }
-        return sortOrder.value === 'asc' ? valA.toString().localeCompare(valB.toString()) : valB.toString().localeCompare(valA.toString())
-      })
-    })
-
-    const sortLessons = () => {
-      // Re-compute
     }
 
     // Cart functions
@@ -103,43 +124,55 @@ export default {
       }
     }
 
-    // Checkout
-    const isValidOrder = computed(() => /^[a-zA-Z\s]+$/.test(orderName.value) && /^\d+$/.test(orderPhone.value))
-    const cartTotal = computed(() => Object.values(cart).reduce((a, b) => a + b, 0))
-    const cartTotalPrice = computed(() => Object.entries(cart).reduce((sum, [id, qty]) => sum + qty * getLessonPrice(id), 0))
-    const getLessonName = (id) => lessons.value.find(l => l._id === id)?.topic + ' in ' + lessons.value.find(l => l._id === id)?.location
-    const getLessonPrice = (id) => lessons.value.find(l => l._id === id)?.price
-    const getIcon = (topic) => {
-      const icons = { Maths: 'fa-calculator', English: 'fa-book', Science: 'fa-flask' }
-      return `fas ${icons[topic] || 'fa-question'}`
-    }
+    // Validation
+    const isValidOrder = computed(() => {
+      const nameValid = /^[A-Za-z\s]+$/.test(orderName.value)
+      const phoneValid = /^0\d{10}$/.test(orderPhone.value)
+      const notesValid = !orderNotes.value || orderNotes.value.length <= 250
+      return nameValid && phoneValid && notesValid
+    })
 
+    const cartTotal = computed(() => Object.values(cart).reduce((a, b) => a + b, 0))
+    const cartTotalPrice = computed(() =>
+      Object.entries(cart).reduce((sum, [id, qty]) => sum + qty * getLessonPrice(id), 0)
+    )
+    const getLessonName = (id) =>
+      lessons.value.find(l => l._id === id)?.topic + ' in ' + lessons.value.find(l => l._id === id)?.location
+    const getLessonPrice = (id) => lessons.value.find(l => l._id === id)?.price
+
+    // Checkout
     const checkout = async () => {
-      const order = { name: orderName.value, phone: orderPhone.value, lessons: Object.entries(cart).map(([id, qty]) => ({ id, qty })) }
+      if (isSubmitting.value) return
+      isSubmitting.value = true
+
+      const order = {
+        name: orderName.value,
+        phone: orderPhone.value,
+        lessons: Object.entries(cart).map(([id, qty]) => ({ id, qty })),
+        notes: orderNotes.value
+      }
       try {
         const postRes = await fetch(`${apiUrl}/orders`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(order)
         })
-        if (postRes.ok) {
-          for (const [id, qty] of Object.entries(cart)) {
-            const lesson = lessons.value.find(l => l._id === id)
-            await fetch(`${apiUrl}/lessons/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ space: lesson.space })
-            })
-          }
-          alert('Order submitted successfully!')
-          Object.keys(cart).forEach(key => delete cart[key])
-          orderName.value = ''
-          orderPhone.value = ''
-          router.push('/')  // Back to lessons
-          fetchLessons()
+        const data = await postRes.json()
+        if (!postRes.ok) {
+          showToast(`Order failed: ${data.error}`, 'error')
+          return
         }
+        showToast('Order submitted successfully!', 'success')
+        Object.keys(cart).forEach(key => delete cart[key])
+        orderName.value = ''
+        orderPhone.value = ''
+        orderNotes.value = ''
+        router.push('/')
+        fetchLessons()
       } catch (err) {
-        console.error('Checkout error:', err)
+        showToast('Checkout error: ' + err.message, 'error')
+      } finally {
+        isSubmitting.value = false
       }
     }
 
@@ -150,7 +183,7 @@ export default {
 
     fetchLessons()
 
-    // Provide shared state to child views
+    // Provide state
     provide('lessons', lessons)
     provide('cart', cart)
     provide('searchQuery', searchQuery)
@@ -158,26 +191,23 @@ export default {
     provide('sortOrder', sortOrder)
     provide('orderName', orderName)
     provide('orderPhone', orderPhone)
-    provide('viewMode', viewMode) 
+    provide('orderNotes', orderNotes)
+    provide('viewMode', viewMode)
     provide('addToBasket', addToBasket)
     provide('updateQty', updateQty)
     provide('removeFromBasket', removeFromBasket)
     provide('debouncedSearch', debouncedSearch)
-    provide('sortLessons', sortLessons)
     provide('checkout', checkout)
     provide('isValidOrder', isValidOrder)
     provide('cartTotal', cartTotal)
     provide('cartTotalPrice', cartTotalPrice)
     provide('getLessonName', getLessonName)
     provide('getLessonPrice', getLessonPrice)
-    provide('getIcon', getIcon)
     provide('apiUrl', apiUrl)
+    provide('isSubmitting', isSubmitting)
+    provide('showToast', showToast)
 
-    return {
-      cartTotal,
-      cartButtonText,
-      toggleCart
-    }
+    return { cartTotal, toggleCart, toasts, route }
   }
 }
 </script>
@@ -185,7 +215,13 @@ export default {
 <style>
 .vh-100 { height: 100vh; }
 .overflow-hidden { overflow: hidden; }
-.product-card { height: 200px; display: flex; flex-direction: column; justify-content: space-between; }
-.add-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.modal { z-index: 1050; }
+.brand-logo { height: 40px; width: auto; }
+.custom-navbar { background: linear-gradient(90deg, #0d6efd, #0b5ed7); }
+.brand-text { font-size: 1.25rem; letter-spacing: 0.5px; }
+.toast-container { z-index: 2000; }
+.animate-toast { animation: slideIn 0.3s ease-out; }
+@keyframes slideIn {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
 </style>
