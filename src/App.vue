@@ -1,4 +1,3 @@
-<!-- src/App.vue -->
 <template>
   <div class="container-fluid vh-100 d-flex flex-column overflow-hidden">
     <!-- Navbar -->
@@ -79,7 +78,6 @@ export default {
         const res = await fetch(`${apiUrl}/lessons`)
         const data = await res.json()
 
-        // Add totalSpace so we always know the original stock
         lessons.value = data.map(l => ({
           ...l,
           totalSpace: l.space
