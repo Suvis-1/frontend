@@ -10,8 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "gh-pages -d dist"
-  },
+    "deploy": "npm run build && git add dist && git commit -m \"deploy\" && git push"
+},
   "dependencies": {
     "bootstrap": "^5.3.3",
     "node": "^24.10.0",
