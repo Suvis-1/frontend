@@ -1,8 +1,9 @@
 <template>
   <div class="container-fluid vh-100 d-flex flex-column overflow-hidden">
-    <!-- Navbar -->
+    <!-- Global Navigation Bar -->
     <nav class="navbar navbar-expand-lg navbar-dark custom-navbar shadow-sm">
       <div class="container">
+        <!-- Brand / Logo -->
         <a class="navbar-brand d-flex align-items-center" href="/frontend/">
           <img src="/logo.png" alt="Logo" class="brand-logo me-2">
           <span class="brand-text">
@@ -10,13 +11,14 @@
             <span class="fw-light"> After‑School Club</span>
           </span>
         </a>
+        <!-- Dynamic navigation: Cart button on lessons page, Lessons button on cart page -->
         <div class="navbar-nav ms-auto">
-          <!-- Show Cart button only on lessons page -->
+          <!-- Show Cart button only on lessons page using v-if -->
           <button v-if="route.path === '/'" class="btn btn-outline-light" @click="toggleCart">
             <i class="fas fa-shopping-cart me-1"></i> Cart ({{ cartTotal }})
           </button>
 
-          <!-- Show Lessons button only on cart page -->
+          <!-- Show Lessons button only on cart page using v-else-if-->
           <button v-else-if="route.path === '/cart'" class="btn btn-outline-light" @click="toggleCart">
             <i class="fas fa-book me-1"></i> Lessons
           </button>
@@ -25,10 +27,10 @@
       </div>
     </nav>
 
-    <!-- Router View -->
+    <!-- Main content area — rendered by Vue Router -->
     <router-view />
 
-    <!-- Toast notifications -->
+    <!-- Global toast notification system -->
     <div class="toast-container position-fixed top-0 end-0 p-3">
       <div v-for="toast in toasts" :key="toast.id"
            class="toast show align-items-center text-white border-0 mb-2 animate-toast"
@@ -42,6 +44,10 @@
 </template>
 
 <script>
+// src/App.vue
+// Root component — acts as the application shell and global state provider
+// Uses provide/inject pattern to share state across deeply nested components
+
 import { ref, reactive, provide, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
@@ -49,20 +55,23 @@ export default {
   setup() {
     const router = useRouter()
     const route = useRoute()
+
+    // Base API URL from Vite environment variables
     const apiUrl = import.meta.env.VITE_API_URL 
 
-    const lessons = ref([])
-    const cart = reactive({})
-    const searchQuery = ref('')
-    const sortBy = ref('topic')
-    const sortOrder = ref('asc')
-    const orderName = ref('')
-    const orderPhone = ref('')
-    const orderNotes = ref('')
-    const viewMode = ref('card')
-    const isSubmitting = ref(false)
+// === GLOBAL REACTIVE STATE ===
+    const lessons = ref([])                    // All available lessons from server
+    const cart = reactive({})                  // Shopping cart: { lessonId: quantity }
+    const searchQuery = ref('')                // Search input value
+    const sortBy = ref('topic')                // Sorting field
+    const sortOrder = ref('asc')               // Sort direction
+    const orderName = ref('')                  // Customer name during checkout
+    const orderPhone = ref('')                 // Customer phone
+    const orderNotes = ref('')                 // Optional notes
+    const viewMode = ref('card')               // UI mode: 'card' or 'list'
+    const isSubmitting = ref(false)            // Prevent double submission
 
-    // Toast system
+    // Toast Notification System
     const toasts = ref([])
     const showToast = (message, type = 'success') => {
       const id = Date.now()
@@ -72,7 +81,7 @@ export default {
       }, 3000)
     }
 
-    // Fetch lessons
+    // Fetch lessons from server
     const fetchLessons = async () => {
       try {
         const res = await fetch(`${apiUrl}/lessons`)
@@ -129,7 +138,7 @@ export default {
       }
     }
 
-    // Validation
+    // Order Validation
     const isValidOrder = computed(() => {
       const nameValid = /^[A-Za-z\s]+$/.test(orderName.value)
       const phoneValid = /^0\d{10}$/.test(orderPhone.value)
@@ -145,7 +154,7 @@ export default {
       lessons.value.find(l => l._id === id)?.topic + ' in ' + lessons.value.find(l => l._id === id)?.location
     const getLessonPrice = (id) => lessons.value.find(l => l._id === id)?.price
 
-    // Checkout
+    // Checkout logic
     const checkout = async () => {
       if (isSubmitting.value) return
       isSubmitting.value = true
@@ -171,6 +180,7 @@ export default {
         await fetchLessons()
 
         showToast('Order submitted successfully!', 'success')
+        // Clear cart and form
         Object.keys(cart).forEach(key => delete cart[key])
         orderName.value = ''
         orderPhone.value = ''
@@ -183,15 +193,16 @@ export default {
         isSubmitting.value = false
       }
     }
-
+    // Navigation toggle between Lessons and Cart
     const cartButtonText = computed(() => route.path === '/cart' ? 'Lessons' : 'Cart')
     const toggleCart = () => {
       router.push(route.path === '/' ? '/cart' : '/')
     }
 
+    // Initial data fetch
     fetchLessons()
 
-    // Provide state
+    // PROVIDE GLOBAL STATE TO ALL CHILD COMPONENTS
     provide('lessons', lessons)
     provide('cart', cart)
     provide('searchQuery', searchQuery)
@@ -221,11 +232,16 @@ export default {
 </script>
 
 <style>
+/* Full viewport height with no overflow */
 .vh-100 { height: 100vh; }
 .overflow-hidden { overflow: hidden; }
+
+/* Brand styling */
 .brand-logo { height: 40px; width: auto; }
 .custom-navbar { background: linear-gradient(90deg, #0d6efd, #0b5ed7); }
 .brand-text { font-size: 1.25rem; letter-spacing: 0.5px; }
+
+/* Toast notifications */
 .toast-container { z-index: 2000; }
 .animate-toast { animation: slideIn 0.3s ease-out; }
 @keyframes slideIn {

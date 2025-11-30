@@ -1,6 +1,7 @@
 <template>
+  <!-- Main lessons page with sidebar filters and responsive layout -->
   <div class="d-flex flex-grow-1 overflow-hidden">
-    <!-- Left Sidebar -->
+    <!-- LEFT SIDEBAR: Sorting, ordering, and view mode controls -->
     <div class="col-md-3 p-3 bg-light border-end" style="height: calc(100vh - 56px); overflow-y: auto;">
       <h5>Sort By</h5>
       <div class="form-check">
@@ -49,15 +50,18 @@
       </div>
     </div>
 
-    <!-- Products Section -->
+    <!-- MAIN CONTENT: Search + Lessons Grid/List -->
     <div class="col-md-9 p-3 d-flex flex-column">
+      <!-- Search bar with debounced server-side search -->
       <input v-model="searchQuery" @input="debouncedSearch" 
              placeholder="Search subjects or locations..." class="form-control mb-3">
 
+      <!-- No results -->
       <div v-if="filteredLessons.length === 0" class="text-center text-muted mt-5">
         No lessons found.
       </div>
-
+      
+      <!-- Lessons display (card or list mode) -->
       <div v-else :class="viewModeClass" class="flex-grow-1 overflow-y-auto">
         <div v-for="lesson in filteredLessons" :key="lesson._id" 
              class="product-item mb-3 p-3 border rounded shadow-sm">
@@ -106,11 +110,16 @@
 </template>
 
 <script>
+// src/views/LessonsView.vue
+// Main public lessons page with advanced filtering, sorting, and cart integration
+// All state provided from App.vue via provide/inject pattern
+
 import { computed, onMounted, watch } from 'vue'
 import { inject } from 'vue'
 
 export default {
   setup() {
+    // Injected global state from App.vue
     const lessons = inject('lessons')
     const cart = inject('cart')
     const searchQuery = inject('searchQuery')
@@ -122,6 +131,7 @@ export default {
     const updateQty = inject('updateQty')
     const apiUrl = inject('apiUrl')
 
+    // Persist user preferences to localStorage
     const persistPreferences = () => {
       localStorage.setItem('lessonPrefs', JSON.stringify({
         sortBy: sortBy.value,
@@ -130,6 +140,7 @@ export default {
       }))
     }
 
+    // Load preferences and cart from localStorage on mount
     onMounted(() => {
       const savedPrefs = localStorage.getItem('lessonPrefs')
       if (savedPrefs) {
@@ -139,6 +150,7 @@ export default {
         viewMode.value = prefs.viewMode || 'card'
       }
 
+      // Load cart with 1-hour expiry
       const savedCart = localStorage.getItem('lessonCart')
       if (savedCart) {
         try {
@@ -165,6 +177,7 @@ export default {
       localStorage.setItem('lessonCart', JSON.stringify(payload))
     }, { deep: true })
 
+    // Computed filtered and sorted lessons
     const filteredLessons = computed(() => {
       return [...lessons.value].sort((a, b) => {
         let valA = a[sortBy.value], valB = b[sortBy.value]
@@ -181,6 +194,7 @@ export default {
       viewMode.value === 'card' ? 'd-grid gap-3 products-grid' : 'd-flex flex-column'
     )
 
+    // Fallback for missing lesson icons
     const onImgError = (e) => {
       if (!e.target.dataset.fallback) {
         e.target.src = `${apiUrl}/images/default.png`
@@ -188,6 +202,7 @@ export default {
       }
     }
 
+    // Validate quantity input
         const validateQty = (id, totalSpace) => {
       let qty = cart[id]
       if (!qty || qty < 1) {

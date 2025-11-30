@@ -8,7 +8,7 @@
       <button class="btn btn-primary btn-sm" @click="$router.push('/')">Back to Lessons</button>
     </div>
 
-    <!-- Basket items -->
+    <!-- Cart items list -->
     <div v-else class="basket-items flex-grow-1 overflow-auto mb-3">
       <div v-for="(qty, id) in cart" :key="id"
           class="d-flex justify-content-between align-items-center mb-3 p-2 border rounded">
@@ -63,11 +63,16 @@
 </template>
 
 <script>
-import { computed, inject, onMounted, watch } from 'vue'
+// src/views/CartView.vue
+// Shopping cart and checkout page
+// Receives all state via provide/inject from App.vue
+
+import { inject, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 export default {
   setup() {
+    // Injected global state from App.vue
     const router = useRouter()
     const cart = inject('cart')
     const orderName = inject('orderName')
@@ -82,7 +87,7 @@ export default {
     const isSubmitting = inject('isSubmitting')
     const isValidOrder = inject('isValidOrder')
 
-    // Persist cart to localStorage
+    // Persist cart to localStorage - Cart saved for 1 hour
     watch(cart, (newCart) => {
       const payload = {
         data: newCart,
@@ -110,27 +115,50 @@ export default {
       }
     })
 
-    return {
-      cart, orderName, orderPhone, orderNotes,
-      updateQty, removeFromBasket, checkout,
-      getLessonName, getLessonPrice, cartTotalPrice,
-      isValidOrder, isSubmitting
+return {
+      cart,
+      orderName,
+      orderPhone,
+      orderNotes,
+      updateQty,
+      removeFromBasket,
+      checkout,
+      getLessonName,
+      getLessonPrice,
+      cartTotalPrice,
+      isSubmitting,
+      isValidOrder
     }
   }
 }
 </script>
 
-<style>
-.basket-items { height: 10px; }
-.checkout-section { border-top: 1px solid #ddd; }
-
-.checkout-btn {
-  height: 100px;
-  font-size: 1.15rem;
-  font-weight: 600;
-  padding-top: 0.6rem;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+<style scoped>
+/* Make basket items scrollable */
+.basket-items {
+  min-height: 200px;
+  max-height: calc(100vh - 400px);
 }
+
+/* Sticky checkout at bottom */
+.checkout-section {
+  border-top: 3px solid #0d6efd;
+  background: #f8f9fa !important;
+}
+
+/* Checkout button */
+.checkout-btn {
+  height: 60px;
+  font-size: 1.3rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.checkout-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2) !important;
+}
+
 .checkout-btn:disabled {
   background-color: #6c757d;
   border-color: #6c757d;
