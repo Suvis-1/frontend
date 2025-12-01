@@ -13,13 +13,28 @@
         </a>
         <!-- Dynamic navigation: Cart button on lessons page, Lessons button on cart page -->
         <div class="navbar-nav ms-auto">
-          <!-- Show Cart button only on lessons page using v-if -->
-          <button v-if="route.path === '/'" class="btn btn-outline-light" @click="toggleCart">
-            <i class="fas fa-shopping-cart me-1"></i> Cart ({{ cartTotal }})
+          <!-- Cart button on lessons page — disabled when empty -->
+          <button 
+            v-if="route.path === '/'" 
+            @click="toggleCart"
+            class="btn btn-outline-light position-relative"
+            :disabled="cartTotal === 0"
+            :class="{ 'opacity-75': cartTotal === 0 }"
+          >
+            <i class="fas fa-shopping-cart me-1"></i>
+            <span v-if="cartTotal === 0">
+              Cart (empty)
+            </span>
+            <span v-else>
+              Cart ({{ cartTotal }})
+            </span>
           </button>
 
-          <!-- Show Lessons button only on cart page using v-else-if-->
-          <button v-else-if="route.path === '/cart'" class="btn btn-outline-light" @click="toggleCart">
+          <!-- Lessons button on cart page -->
+          <button 
+            v-else-if="route.path === '/cart'" 
+            @click="toggleCart"
+            class="btn btn-outline-light">
             <i class="fas fa-book me-1"></i> Lessons
           </button>
         </div>
@@ -35,9 +50,9 @@
       <div v-for="toast in toasts" :key="toast.id"
            class="toast show align-items-center text-white border-0 mb-2 animate-toast"
            :class="toast.type === 'success' ? 'bg-success' : 'bg-danger'">
-        <div class="d-flex">
-          <div class="toast-body">{{ toast.message }}</div>
-        </div>
+            <div class="d-flex">
+              <div class="toast-body">{{ toast.message }}</div>
+            </div>
       </div>
     </div>
   </div>
@@ -59,7 +74,7 @@ export default {
     // Base API URL from Vite environment variables
     const apiUrl = import.meta.env.VITE_API_URL 
 
-// === GLOBAL REACTIVE STATE ===
+    // === GLOBAL REACTIVE STATE ===
     const lessons = ref([])                    // All available lessons from server
     const cart = reactive({})                  // Shopping cart: { lessonId: quantity }
     const searchQuery = ref('')                // Search input value
