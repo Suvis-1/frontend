@@ -70,23 +70,22 @@ export default {
   setup() {
     const router = useRouter()
     const route = useRoute()
+    const apiUrl = import.meta.env.VITE_API_URL
 
-    // Base API URL from Vite environment variables
-    const apiUrl = import.meta.env.VITE_API_URL 
+    // === GLOBAL STATE ===
+    const allLessons = ref([])      // All lessons from server (for cart)
+    const filteredLessons = ref([]) // Lessons to display (for search/sorting)
+    const cart = reactive({})
+    const searchQuery = ref('')
+    const sortBy = ref('topic')
+    const sortOrder = ref('asc')
+    const orderName = ref('')
+    const orderPhone = ref('')
+    const orderNotes = ref('')
+    const viewMode = ref('card')
+    const isSubmitting = ref(false)
 
-    // === GLOBAL REACTIVE STATE ===
-    const lessons = ref([])                    // All available lessons from server
-    const cart = reactive({})                  // Shopping cart: { lessonId: quantity }
-    const searchQuery = ref('')                // Search input value
-    const sortBy = ref('topic')                // Sorting field
-    const sortOrder = ref('asc')               // Sort direction
-    const orderName = ref('')                  // Customer name during checkout
-    const orderPhone = ref('')                 // Customer phone
-    const orderNotes = ref('')                 // Optional notes
-    const viewMode = ref('card')               // UI mode: 'card' or 'list'
-    const isSubmitting = ref(false)            // Prevent double submission
-
-    // Toast Notification System
+    // Toast system
     const toasts = ref([])
     const showToast = (message, type = 'success') => {
       const id = Date.now()
@@ -96,80 +95,153 @@ export default {
       }, 3000)
     }
 
-    // Fetch lessons from server
+    // Update all lessons from server data
+    const updateAllLessons = (newData) => {
+      const newMap = new Map(newData.map(l => [l._id, l]))
+
+      // Update existing lessons in allLessons
+      allLessons.value.forEach(lesson => {
+        const updated = newMap.get(lesson._id)
+        if (updated) {
+          // Preserve cart quantity in available space calculation
+          const cartQty = cart[lesson._id] || 0
+          Object.assign(lesson, updated)
+          lesson.totalSpace = lesson.totalSpace || updated.space
+          lesson.space = updated.space - cartQty // Adjust available space based on cart
+          newMap.delete(lesson._id)
+        }
+      })
+
+      // Add new lessons that aren't already in our list
+      newMap.forEach(newLesson => {
+        const cartQty = cart[newLesson._id] || 0
+        allLessons.value.push({
+          ...newLesson,
+          totalSpace: newLesson.space,
+          space: newLesson.space - cartQty // Adjust for cart items
+        })
+      })
+      
+      // If there's no search query, update filteredLessons to show all lessons
+      if (!searchQuery.value) {
+        filteredLessons.value = [...allLessons.value]
+      }
+    }
+
+    // Update filtered lessons for search results
+    const updateFilteredLessons = (searchResults) => {
+      const resultIds = new Set(searchResults.map(l => l._id))
+      
+      // Create filtered list from allLessons that match search results
+      filteredLessons.value = allLessons.value.filter(lesson => 
+        resultIds.has(lesson._id)
+      )
+    }
+
+    // Fetch all lessons
     const fetchLessons = async () => {
       try {
         const res = await fetch(`${apiUrl}/lessons`)
         const data = await res.json()
-
-        lessons.value = data.map(l => ({
-          ...l,
-          totalSpace: l.space
-        }))
+        updateAllLessons(data)
+        // Show all lessons initially
+        filteredLessons.value = [...allLessons.value]
       } catch (err) {
         showToast('Error fetching lessons', 'error')
       }
     }
 
-
-    // Debounced search
+    // Debounced search function
     let searchTimeout
     const debouncedSearch = () => {
       clearTimeout(searchTimeout)
       searchTimeout = setTimeout(async () => {
-        if (searchQuery.value) {
-          const res = await fetch(`${apiUrl}/search?q=${encodeURIComponent(searchQuery.value)}`)
-          lessons.value = await res.json()
-        } else {
-          fetchLessons()
+        try {
+          if (searchQuery.value.trim()) {
+            const res = await fetch(`${apiUrl}/search?q=${encodeURIComponent(searchQuery.value)}`)
+            const data = await res.json()
+            updateAllLessons(data) // Update all lessons with fresh data
+            updateFilteredLessons(data) // Update filtered view with search results
+          } else {
+            // If search is empty, show all lessons
+            filteredLessons.value = [...allLessons.value]
+          }
+        } catch (err) {
+          showToast('Search failed', 'error')
         }
       }, 300)
     }
 
-    // Cart functions
+    // === CART LOGIC ===
     const addToBasket = (id) => {
-      const lesson = lessons.value.find(l => l._id === id)
-      if (lesson.space > 0) {
+      const lesson = allLessons.value.find(l => l._id === id)
+      if (lesson && lesson.space > 0) {
         cart[id] = (cart[id] || 0) + 1
         lesson.space -= 1
+        
+        // Also update the lesson in filteredLessons if it exists there
+        const filteredLesson = filteredLessons.value.find(l => l._id === id)
+        if (filteredLesson) {
+          filteredLesson.space -= 1
+        }
       }
     }
 
     const updateQty = (id, change) => {
-      const lesson = lessons.value.find(l => l._id === id)
+      const lesson = allLessons.value.find(l => l._id === id)
       const newQty = (cart[id] || 0) + change
-      if (newQty < 0) return
-      if (change > 0 && change > lesson.space) return
+      if (newQty < 0 || (change > 0 && change > lesson.space)) return
       cart[id] = newQty
       lesson.space -= change
+      
+      // Also update the lesson in filteredLessons if it exists there
+      const filteredLesson = filteredLessons.value.find(l => l._id === id)
+      if (filteredLesson) {
+        filteredLesson.space -= change
+      }
+      
       if (newQty === 0) delete cart[id]
     }
 
     const removeFromBasket = (id) => {
-      const lesson = lessons.value.find(l => l._id === id)
+      const lesson = allLessons.value.find(l => l._id === id)
       if (cart[id]) {
-        lesson.space += cart[id]
+        const qty = cart[id]
+        lesson.space += qty
+        
+        // Also update the lesson in filteredLessons if it exists there
+        const filteredLesson = filteredLessons.value.find(l => l._id === id)
+        if (filteredLesson) {
+          filteredLesson.space += qty
+        }
+        
         delete cart[id]
       }
     }
 
-    // Order Validation
+    // === ORDER & COMPUTED ===
     const isValidOrder = computed(() => {
       const nameValid = /^[A-Za-z\s]+$/.test(orderName.value)
       const phoneValid = /^0\d{10}$/.test(orderPhone.value)
-      const notesValid = !orderNotes.value || orderNotes.value.length <= 250
-      return nameValid && phoneValid && notesValid
+      return nameValid && phoneValid
     })
 
     const cartTotal = computed(() => Object.values(cart).reduce((a, b) => a + b, 0))
     const cartTotalPrice = computed(() =>
       Object.entries(cart).reduce((sum, [id, qty]) => sum + qty * getLessonPrice(id), 0)
     )
-    const getLessonName = (id) =>
-      lessons.value.find(l => l._id === id)?.topic + ' in ' + lessons.value.find(l => l._id === id)?.location
-    const getLessonPrice = (id) => lessons.value.find(l => l._id === id)?.price
+    
+    const getLessonName = (id) => {
+      const l = allLessons.value.find(l => l._id === id)
+      return l ? `${l.topic} in ${l.location}` : 'Loading...'
+    }
+    
+    const getLessonPrice = (id) => {
+      const l = allLessons.value.find(l => l._id === id)
+      return l ? l.price : 0
+    }
 
-    // Checkout logic
+    // === CHECKOUT ===
     const checkout = async () => {
       if (isSubmitting.value) return
       isSubmitting.value = true
@@ -180,45 +252,45 @@ export default {
         lessons: Object.entries(cart).map(([id, qty]) => ({ id, qty })),
         notes: orderNotes.value
       }
+
       try {
-        const postRes = await fetch(`${apiUrl}/orders`, {
+        const res = await fetch(`${apiUrl}/orders`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(order)
         })
-        const data = await postRes.json()
-        if (!postRes.ok) {
-          showToast(`Order failed: ${data.error}`, 'error')
-          return
-        }
 
+        if (!res.ok) throw new Error((await res.json()).error || 'Order failed')
+
+        // Refresh lessons to get updated availability
         await fetchLessons()
-
         showToast('Order submitted successfully!', 'success')
+        
         // Clear cart and form
-        Object.keys(cart).forEach(key => delete cart[key])
-        orderName.value = ''
-        orderPhone.value = ''
-        orderNotes.value = ''
+        Object.keys(cart).forEach(k => delete cart[k])
+        orderName.value = orderPhone.value = orderNotes.value = ''
+        
+        // Navigate back to lessons
         router.push('/')
-        fetchLessons()
       } catch (err) {
-        showToast('Checkout error: ' + err.message, 'error')
+        showToast(`Checkout failed: ${err.message}`, 'error')
       } finally {
         isSubmitting.value = false
       }
     }
-    // Navigation toggle between Lessons and Cart
-    const cartButtonText = computed(() => route.path === '/cart' ? 'Lessons' : 'Cart')
+
     const toggleCart = () => {
       router.push(route.path === '/' ? '/cart' : '/')
     }
 
-    // Initial data fetch
+    // Initial load
     fetchLessons()
 
-    // PROVIDE GLOBAL STATE TO ALL CHILD COMPONENTS
-    provide('lessons', lessons)
+    // === PROVIDE TO CHILDREN ===
+    // Provide filteredLessons for display in LessonsView
+    provide('lessons', filteredLessons)
+    // Provide allLessons for cart operations
+    provide('allLessons', allLessons)
     provide('cart', cart)
     provide('searchQuery', searchQuery)
     provide('sortBy', sortBy)
