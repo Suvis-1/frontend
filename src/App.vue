@@ -73,8 +73,8 @@ export default {
     const apiUrl = import.meta.env.VITE_API_URL
 
     // === GLOBAL STATE ===
-    const allLessons = ref([])      // All lessons from server (for cart)
-    const filteredLessons = ref([]) // Lessons to display (for search/sorting)
+    const allLessons = ref([])      // All lessons from server (master data)
+    const filteredLessons = ref([]) // Lessons to display (references to allLessons objects)
     const cart = reactive({})
     const searchQuery = ref('')
     const sortBy = ref('topic')
@@ -103,11 +103,14 @@ export default {
       allLessons.value.forEach(lesson => {
         const updated = newMap.get(lesson._id)
         if (updated) {
-          // Preserve cart quantity in available space calculation
+          // Preserve cart quantity and existing totalSpace
           const cartQty = cart[lesson._id] || 0
+          // Update all properties from server
           Object.assign(lesson, updated)
+          // Keep the original totalSpace if it exists, otherwise use server space
           lesson.totalSpace = lesson.totalSpace || updated.space
-          lesson.space = updated.space - cartQty // Adjust available space based on cart
+          // Calculate available space: server space minus cart quantity
+          lesson.space = Math.max(0, updated.space - cartQty)
           newMap.delete(lesson._id)
         }
       })
@@ -118,24 +121,23 @@ export default {
         allLessons.value.push({
           ...newLesson,
           totalSpace: newLesson.space,
-          space: newLesson.space - cartQty // Adjust for cart items
+          space: Math.max(0, newLesson.space - cartQty)
         })
       })
-      
-      // If there's no search query, update filteredLessons to show all lessons
-      if (!searchQuery.value) {
-        filteredLessons.value = [...allLessons.value]
-      }
     }
 
-    // Update filtered lessons for search results
+    // Update filtered lessons based on search results
     const updateFilteredLessons = (searchResults) => {
-      const resultIds = new Set(searchResults.map(l => l._id))
-      
-      // Create filtered list from allLessons that match search results
-      filteredLessons.value = allLessons.value.filter(lesson => 
-        resultIds.has(lesson._id)
-      )
+      if (searchResults && searchResults.length > 0) {
+        const resultIds = new Set(searchResults.map(l => l._id))
+        // Get references to the same objects in allLessons
+        filteredLessons.value = allLessons.value.filter(lesson => 
+          resultIds.has(lesson._id)
+        )
+      } else {
+        // If no search results (or empty search), show all lessons
+        filteredLessons.value = [...allLessons.value]
+      }
     }
 
     // Fetch all lessons
@@ -151,7 +153,7 @@ export default {
       }
     }
 
-    // Debounced search function
+    // Debounced search
     let searchTimeout
     const debouncedSearch = () => {
       clearTimeout(searchTimeout)
@@ -160,11 +162,13 @@ export default {
           if (searchQuery.value.trim()) {
             const res = await fetch(`${apiUrl}/search?q=${encodeURIComponent(searchQuery.value)}`)
             const data = await res.json()
-            updateAllLessons(data) // Update all lessons with fresh data
-            updateFilteredLessons(data) // Update filtered view with search results
+            // Update all lessons with fresh data from server
+            updateAllLessons(data)
+            // Update filtered view with search results
+            updateFilteredLessons(data)
           } else {
-            // If search is empty, show all lessons
-            filteredLessons.value = [...allLessons.value]
+            // If search is cleared, show all lessons
+            fetchLessons()
           }
         } catch (err) {
           showToast('Search failed', 'error')
@@ -178,29 +182,26 @@ export default {
       if (lesson && lesson.space > 0) {
         cart[id] = (cart[id] || 0) + 1
         lesson.space -= 1
-        
-        // Also update the lesson in filteredLessons if it exists there
-        const filteredLesson = filteredLessons.value.find(l => l._id === id)
-        if (filteredLesson) {
-          filteredLesson.space -= 1
-        }
+        // Since filteredLessons contains references to the same objects,
+        // the space update automatically reflects in filteredLessons
       }
     }
 
     const updateQty = (id, change) => {
       const lesson = allLessons.value.find(l => l._id === id)
-      const newQty = (cart[id] || 0) + change
-      if (newQty < 0 || (change > 0 && change > lesson.space)) return
+      const currentQty = cart[id] || 0
+      const newQty = currentQty + change
+      
+      // Validate the change
+      if (newQty < 0) return // Can't go below 0
+      if (change > 0 && change > lesson.space) return // Not enough available
+      
       cart[id] = newQty
       lesson.space -= change
       
-      // Also update the lesson in filteredLessons if it exists there
-      const filteredLesson = filteredLessons.value.find(l => l._id === id)
-      if (filteredLesson) {
-        filteredLesson.space -= change
+      if (newQty === 0) {
+        delete cart[id]
       }
-      
-      if (newQty === 0) delete cart[id]
     }
 
     const removeFromBasket = (id) => {
@@ -208,13 +209,6 @@ export default {
       if (cart[id]) {
         const qty = cart[id]
         lesson.space += qty
-        
-        // Also update the lesson in filteredLessons if it exists there
-        const filteredLesson = filteredLessons.value.find(l => l._id === id)
-        if (filteredLesson) {
-          filteredLesson.space += qty
-        }
-        
         delete cart[id]
       }
     }
